@@ -18,6 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.datastructures import Headers
 from typing_extensions import TypeIs
 
+from vllm.v1.engine.exceptions import SchedulerWaitingQueueFullError
+
 if sys.version_info >= (3, 12):
     from typing import TypedDict
 else:
@@ -392,6 +394,12 @@ class OpenAIServing:
 
             return None
 
+        except SchedulerWaitingQueueFullError as e:
+            return self.create_error_response(
+                str(e),
+                err_type="ServiceUnavailableError",
+                status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+            )
         except Exception as e:
             return self.create_error_response(str(e))
 

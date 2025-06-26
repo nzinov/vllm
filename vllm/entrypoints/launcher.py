@@ -17,7 +17,8 @@ from vllm.engine.protocol import EngineClient
 from vllm.entrypoints.ssl import SSLCertRefresher
 from vllm.logger import init_logger
 from vllm.utils import find_process_using_port
-from vllm.v1.engine.exceptions import EngineDeadError, EngineGenerateError
+from vllm.v1.engine.exceptions import (EngineDeadError, EngineGenerateError,
+                                       SchedulerWaitingQueueFullError)
 
 logger = init_logger(__name__)
 
@@ -138,10 +139,16 @@ def _add_shutdown_handlers(app: FastAPI, server: uvicorn.Server) -> None:
     @app.exception_handler(MQEngineDeadError)
     @app.exception_handler(EngineDeadError)
     @app.exception_handler(EngineGenerateError)
+    @app.exception_handler(SchedulerWaitingQueueFullError)
     async def runtime_exception_handler(request: Request, __):
         terminate_if_errored(
             server=server,
             engine=request.app.state.engine_client,
         )
 
-        return Response(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
+        if isinstance(__, SchedulerWaitingQueueFullError):
+            status = HTTPStatus.SERVICE_UNAVAILABLE
+        else:
+            status = HTTPStatus.INTERNAL_SERVER_ERROR
+
+        return Response(status_code=status)

@@ -326,6 +326,8 @@ class EngineArgs:
     long_prefill_token_threshold: int = \
         SchedulerConfig.long_prefill_token_threshold
     max_num_seqs: Optional[int] = SchedulerConfig.max_num_seqs
+    max_waiting_queue_length: Optional[int] = (
+        SchedulerConfig.max_waiting_queue_length)
     max_logprobs: int = ModelConfig.max_logprobs
     disable_log_stats: bool = False
     revision: Optional[str] = ModelConfig.revision
@@ -824,6 +826,9 @@ class EngineArgs:
         scheduler_group.add_argument("--max-num-seqs",
                                      **scheduler_kwargs["max_num_seqs"])
         scheduler_group.add_argument(
+            "--max-waiting-queue-length",
+            **scheduler_kwargs["max_waiting_queue_length"])
+        scheduler_group.add_argument(
             "--max-num-partial-prefills",
             **scheduler_kwargs["max_num_partial_prefills"])
         scheduler_group.add_argument(
@@ -1184,6 +1189,7 @@ class EngineArgs:
             max_num_partial_prefills=self.max_num_partial_prefills,
             max_long_partial_prefills=self.max_long_partial_prefills,
             long_prefill_token_threshold=self.long_prefill_token_threshold,
+            max_waiting_queue_length=self.max_waiting_queue_length,
             disable_hybrid_kv_cache_manager=self.
             disable_hybrid_kv_cache_manager,
         )
