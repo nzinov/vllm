@@ -2053,6 +2053,11 @@ class SchedulerConfig:
     """Apply a delay (of delay factor multiplied by previous
     prompt latency) before scheduling next prompt."""
 
+    max_waiting_queue_length: Optional[int] = None
+    """Maximum number of requests allowed in the scheduler waiting queue.
+
+    ``None`` means the waiting queue is unbounded."""
+
     enable_chunked_prefill: SkipValidation[bool] = None  # type: ignore
     """If True, prefill requests can be chunked based
     on the remaining max_num_batched_tokens."""
@@ -2271,6 +2276,11 @@ class SchedulerConfig:
                 f"max_long_partial_prefills ({self.max_long_partial_prefills}) "
                 "must be greater than or equal to 1 and less than or equal to "
                 f"max_num_partial_prefills ({self.max_num_partial_prefills}).")
+
+        if (self.max_waiting_queue_length is not None
+                and self.max_waiting_queue_length <= 0):
+            raise ValueError(
+                "max_waiting_queue_length must be greater than 0 if set.")
 
     @property
     def is_multi_step(self) -> bool:

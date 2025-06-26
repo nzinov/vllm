@@ -5,6 +5,7 @@ import asyncio
 import time
 from collections.abc import AsyncGenerator, AsyncIterator
 from collections.abc import Sequence as GenericSequence
+from http import HTTPStatus
 from typing import Optional, Union, cast
 
 import jinja2
@@ -38,6 +39,7 @@ from vllm.sampling_params import BeamSearchParams, SamplingParams
 from vllm.sequence import Logprob
 from vllm.transformers_utils.tokenizer import AnyTokenizer
 from vllm.utils import merge_async_iterators
+from vllm.v1.engine.exceptions import SchedulerWaitingQueueFullError
 
 logger = init_logger(__name__)
 
@@ -262,6 +264,12 @@ class OpenAIServingCompletion(OpenAIServing):
             )
         except asyncio.CancelledError:
             return self.create_error_response("Client disconnected")
+        except SchedulerWaitingQueueFullError as e:
+            return self.create_error_response(
+                str(e),
+                err_type="ServiceUnavailableError",
+                status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+            )
         except ValueError as e:
             # TODO: Use a vllm-specific Validation Error
             return self.create_error_response(str(e))
@@ -422,7 +430,14 @@ class OpenAIServingCompletion(OpenAIServing):
 
         except Exception as e:
             # TODO: Use a vllm-specific Validation Error
-            data = self.create_streaming_error_response(str(e))
+            if isinstance(e, SchedulerWaitingQueueFullError):
+                data = self.create_streaming_error_response(
+                    str(e),
+                    err_type="ServiceUnavailableError",
+                    status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+                )
+            else:
+                data = self.create_streaming_error_response(str(e))
             yield f"data: {data}\n\n"
         yield "data: [DONE]\n\n"
 

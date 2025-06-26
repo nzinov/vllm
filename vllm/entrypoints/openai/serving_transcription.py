@@ -5,6 +5,7 @@ import io
 import math
 import time
 from collections.abc import AsyncGenerator
+from http import HTTPStatus
 from math import ceil
 from typing import Final, Optional, Union, cast
 
@@ -25,6 +26,7 @@ from vllm.logger import init_logger
 from vllm.outputs import RequestOutput
 from vllm.transformers_utils.processor import cached_get_processor
 from vllm.utils import PlaceholderModule
+from vllm.v1.engine.exceptions import SchedulerWaitingQueueFullError
 
 try:
     import librosa
@@ -325,6 +327,12 @@ class OpenAIServingTranscription(OpenAIServing):
             return TranscriptionResponse(text=text)
         except asyncio.CancelledError:
             return self.create_error_response("Client disconnected")
+        except SchedulerWaitingQueueFullError as e:
+            return self.create_error_response(
+                str(e),
+                err_type="ServiceUnavailableError",
+                status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+            )
         except ValueError as e:
             # TODO: Use a vllm-specific Validation Error
             return self.create_error_response(str(e))
@@ -430,9 +438,15 @@ class OpenAIServingTranscription(OpenAIServing):
                 total_tokens=num_prompt_tokens + completion_tokens)
 
         except Exception as e:
-            # TODO: Use a vllm-specific Validation Error
             logger.exception("Error in chat completion stream generator.")
-            data = self.create_streaming_error_response(str(e))
+            if isinstance(e, SchedulerWaitingQueueFullError):
+                data = self.create_streaming_error_response(
+                    str(e),
+                    err_type="ServiceUnavailableError",
+                    status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+                )
+            else:
+                data = self.create_streaming_error_response(str(e))
             yield f"data: {data}\n\n"
         # Send the final done message after all response.n are finished
         yield "data: [DONE]\n\n"
