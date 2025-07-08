@@ -424,6 +424,7 @@ class EngineArgs:
     disable_async_output_proc: bool = not ModelConfig.use_async_output_proc
     scheduling_policy: SchedulerPolicy = SchedulerConfig.policy
     scheduler_cls: Union[str, Type[object]] = SchedulerConfig.scheduler_cls
+    limit_queue_length: bool = SchedulerConfig.limit_queue_length
 
     override_neuron_config: dict[str, Any] = \
         get_field(ModelConfig, "override_neuron_config")
@@ -861,8 +862,8 @@ class EngineArgs:
         scheduler_group.add_argument("--scheduling-policy",
                                      **scheduler_kwargs["policy"])
         scheduler_group.add_argument(
-            "--max-waiting-queue-length",
-            **scheduler_kwargs["max_waiting_queue_length"])
+            "--limit-queue-length",
+            **scheduler_kwargs["limit_queue_length"])
         scheduler_group.add_argument(
             "--enable-chunked-prefill",
             **scheduler_kwargs["enable_chunked_prefill"])
@@ -1197,6 +1198,7 @@ class EngineArgs:
             send_delta_data=(envs.VLLM_USE_RAY_SPMD_WORKER
                              and parallel_config.use_ray),
             policy=self.scheduling_policy,
+            limit_queue_length=self.limit_queue_length,
             scheduler_cls=self.scheduler_cls,
             max_num_partial_prefills=self.max_num_partial_prefills,
             max_long_partial_prefills=self.max_long_partial_prefills,

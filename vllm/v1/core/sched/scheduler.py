@@ -918,13 +918,19 @@ class Scheduler(SchedulerInterface):
     def add_request(self, request: Request) -> None:
         """Adds a request to the waiting queue."""
         # Check if waiting queue is full
-        if (self.scheduler_config.limit_queue_length and
-            len(self.waiting) >= len(self.running)):
-            raise SchedulerWaitingQueueFullError(
-                f"Scheduler waiting queue is too big ({len(self.waiting)} >= "
-                f"{len(self.running)}). "
-                f"Cannot add request {request.request_id}.")
+        waiting_count = len(self.waiting)
+        running_count = len(self.running)
+        limit_enabled = self.scheduler_config.limit_queue_length
         
+        # DEBUG: Always log queue limiting check
+        print(f"🔍 QUEUE LIMIT CHECK: waiting={waiting_count}, running={running_count}, limit_enabled={limit_enabled}, request_id={request.request_id}")
+        
+        if (limit_enabled and running_count > 0 and waiting_count >= 2 * running_count):
+            error_msg = f"Scheduler waiting queue is too big ({waiting_count} >= {2 * running_count}). Cannot add request {request.request_id}."
+            print(f"🚨 QUEUE LIMIT TRIGGERED: {error_msg}")
+            raise SchedulerWaitingQueueFullError(error_msg)
+        
+        print(f"✅ QUEUE LIMIT PASSED: Adding request {request.request_id} to waiting queue")
         self.waiting.add_request(request)
         self.requests[request.request_id] = request
         if self.log_stats:

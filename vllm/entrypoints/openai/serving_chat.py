@@ -257,6 +257,7 @@ class OpenAIServingChat(OpenAIServing):
 
                 generators.append(generator)
         except SchedulerWaitingQueueFullError as e:
+            print(f"🎯 HTTP 503 RESPONSE: Queue limit exceeded - {str(e)}")
             return self.create_error_response(
                 str(e),
                 err_type="ServiceUnavailableError", 

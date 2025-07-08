@@ -196,7 +196,9 @@ class EngineCore:
             logger.warning("Got kv_transfer_params, but no KVConnector found. "
                            "Disabling KVTransfer for this request.")
 
+        print(f"🔥 CORE ENGINE: About to call scheduler.add_request for {req.request_id}")
         self.scheduler.add_request(req)
+        print(f"🔥 CORE ENGINE: Successfully added request {req.request_id} to scheduler")
 
     def abort_requests(self, request_ids: list[str]):
         """Abort requests from the scheduler."""
@@ -571,9 +573,36 @@ class EngineCoreProc(EngineCore):
     def _handle_client_request(self, request_type: EngineCoreRequestType,
                                request: Any) -> None:
         """Dispatch request from client."""
+        import time
+        from vllm.v1.engine.exceptions import SchedulerWaitingQueueFullError
+        from vllm.v1.engine import EngineCoreOutput, EngineCoreOutputs, FinishReason
 
         if request_type == EngineCoreRequestType.ADD:
-            self.add_request(request)
+            try:
+                self.add_request(request)
+            except SchedulerWaitingQueueFullError as e:
+                # Queue is full - send back an error response instead of crashing
+                print(f"🚨 CORE ENGINE: Queue full for request {request.request_id}: {str(e)}")
+                
+                # Create an error output for this specific request
+                error_output = EngineCoreOutput(
+                    request_id=request.request_id,
+                    new_token_ids=[],
+                    finish_reason=FinishReason.ABORT,
+                    stop_reason=f"SchedulerWaitingQueueFullError: {str(e)}"
+                )
+                
+                # Send the error output back to the client
+                error_response = EngineCoreOutputs(
+                    engine_index=0,
+                    outputs=[error_output],
+                    timestamp=time.monotonic()
+                )
+                
+                self.output_queue.put_nowait((request.client_index, error_response))
+                print(f"🔧 CORE ENGINE: Sent error response for request {request.request_id}")
+                
+                # Don't re-raise the exception to avoid crashing the engine core
         elif request_type == EngineCoreRequestType.ABORT:
             self.abort_requests(request)
         elif request_type == EngineCoreRequestType.UTILITY:
